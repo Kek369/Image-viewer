@@ -33,6 +33,7 @@ class ImageViewer {
             img.style.width = '100%';
             img.style.height = '100%';
             img.style.objectFit = 'contain';
+            img.classList.remove('visible');
         });
     }
 
@@ -66,9 +67,16 @@ class ImageViewer {
                 if (imageNumber === 1) {
                     this.mainImage.src = e.target.result;
                     this.leftImage.src = e.target.result;
+                    this.leftImage.classList.add('visible');
+                    this.mainImage.classList.add('visible');
                 } else {
                     this.rightImage.src = e.target.result;
+                    this.rightImage.classList.add('visible');
+                    this.toggleCompareMode();
                 }
+                
+                // 预加载图片
+                this.preloadImages();
                 
                 // 重置变换
                 this.scale = 1;
@@ -116,24 +124,31 @@ class ImageViewer {
     }
 
     updateTransform() {
-        const transform = `translate(${this.translateX}px, ${this.translateY}px) 
-                          rotate(${this.rotation}deg) 
-                          scale(${this.scale})`;
-        [this.mainImage, this.leftImage, this.rightImage].forEach(img => {
-            img.style.transform = transform;
+        requestAnimationFrame(() => {
+            const transform = `translate(${this.translateX}px, ${this.translateY}px) 
+                              rotate(${this.rotation}deg) 
+                              scale(${this.scale})`;
+            [this.mainImage, this.leftImage, this.rightImage].forEach(img => {
+                img.style.transform = transform;
+            });
         });
     }
 
     startSliderDrag(e) {
         e.stopPropagation();
+        const container = this.compareViewer.getBoundingClientRect();
+        
         const sliderDrag = (e) => {
-            const container = this.compareViewer.getBoundingClientRect();
-            const percentage = ((e.clientX - container.left) / container.width) * 100;
+            const x = e.clientX - container.left;
+            const percentage = (x / container.width) * 100;
             const clampedPercentage = Math.min(Math.max(0, percentage), 100);
             
+            // 更新滑块位置
             this.slider.style.left = `${clampedPercentage}%`;
-            document.querySelector('.compare-image.right').style.clipPath = 
-                `inset(0 0 0 ${clampedPercentage}%)`;
+            
+            // 更新右侧图片的裁剪区域
+            const rightImage = document.querySelector('.compare-image.right');
+            rightImage.style.clipPath = `inset(0 0 0 ${clampedPercentage}%)`;
         };
         
         const endSliderDrag = () => {
@@ -141,6 +156,7 @@ class ImageViewer {
             document.removeEventListener('mouseup', endSliderDrag);
         };
         
+        // 添加事件监听器
         document.addEventListener('mousemove', sliderDrag);
         document.addEventListener('mouseup', endSliderDrag);
     }
@@ -150,9 +166,22 @@ class ImageViewer {
         if (this.compareMode) {
             this.imageViewer.classList.add('hidden');
             this.compareViewer.classList.remove('hidden');
+            
+            // 添加淡入效果
+            this.leftImage.classList.add('visible');
+            this.rightImage.classList.add('visible');
+            
+            // 初始化滑块位置
+            this.slider.style.left = '50%'; // 设置滑块初始位置为中间
+            document.querySelector('.compare-image.right').style.clipPath = 
+                `inset(0 0 0 50%)`; // 设置右侧图片的初始显示
         } else {
             this.imageViewer.classList.remove('hidden');
             this.compareViewer.classList.add('hidden');
+            
+            // 移除淡入效果
+            this.leftImage.classList.remove('visible');
+            this.rightImage.classList.remove('visible');
         }
     }
 
@@ -267,6 +296,15 @@ class ImageViewer {
         const filter = `brightness(${this.brightness}%)`;
         [this.mainImage, this.leftImage, this.rightImage].forEach(img => {
             img.style.filter = filter;
+        });
+    }
+
+    preloadImages() {
+        // 预加载图片
+        const images = [this.mainImage.src, this.leftImage.src, this.rightImage.src];
+        images.forEach(src => {
+            const img = new Image();
+            img.src = src;
         });
     }
 }
