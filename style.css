@@ -1,0 +1,88 @@
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.upload-section {
+    margin-bottom: 20px;
+}
+
+.viewer-container {
+    position: relative;
+    width: 100%;
+    height: 600px;
+    border: 1px solid #ccc;
+    overflow: hidden;
+}
+
+.image-viewer {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.viewer-image {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transform-origin: center center;
+    user-select: none;
+    pointer-events: none;
+}
+
+.compare-viewer {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.compare-image {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.compare-image img {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transform-origin: center center;
+    user-select: none;
+    pointer-events: none;
+}
+
+.compare-image.right {
+    clip-path: inset(0 0 0 50%);
+}
+
+.slider {
+    position: absolute;
+    width: 4px;
+    height: 100%;
+    background: #fff;
+    left: 50%;
+    cursor: ew-resize;
+}
+
+.slider::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border: 2px solid #333;
+}
+
+.hidden {
+    display: none;
+} 

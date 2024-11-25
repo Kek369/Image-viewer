@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片查看器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="upload-section">
+            <input type="file" id="image1" accept="image/*">
+            <input type="file" id="image2" accept="image/*">
+            <button id="compareMode">切换对比模式</button>
+        </div>
+        
+        <div class="viewer-container">
+            <div id="imageViewer" class="image-viewer">
+                <img id="mainImage" class="viewer-image">
+            </div>
+            
+            <div id="compareViewer" class="compare-viewer hidden">
+                <div class="compare-image left">
+                    <img id="leftImage">
+                </div>
+                <div class="compare-image right">
+                    <img id="rightImage">
+                </div>
+                <div id="slider" class="slider"></div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html> 
