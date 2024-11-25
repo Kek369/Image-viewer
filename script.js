@@ -7,6 +7,9 @@ class ImageViewer {
         this.translateY = 0;
         this.isDragging = false;
         this.compareMode = false;
+
+        // 检查 URL 参数并加载图片
+        this.loadFromURL();
     }
 
     setupElements() {
@@ -45,6 +48,9 @@ class ImageViewer {
         
         // 对比滑块事件
         this.slider.addEventListener('mousedown', (e) => this.startSliderDrag(e));
+        
+        // 添加分享按钮事件
+        document.getElementById('shareButton').addEventListener('click', () => this.copyShareLink());
     }
 
     handleImageUpload(event, imageNumber) {
@@ -141,6 +147,59 @@ class ImageViewer {
             this.imageViewer.classList.remove('hidden');
             this.compareViewer.classList.add('hidden');
         }
+    }
+
+    loadFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const img1Url = urlParams.get('img1');
+        const img2Url = urlParams.get('img2');
+        const compare = urlParams.get('compare') === 'true';
+
+        if (img1Url) {
+            this.loadImageFromURL(img1Url, 1);
+        }
+        if (img2Url) {
+            this.loadImageFromURL(img2Url, 2);
+        }
+        if (compare) {
+            this.compareMode = true;
+            this.toggleCompareMode();
+        }
+    }
+
+    loadImageFromURL(url, imageNumber) {
+        if (imageNumber === 1) {
+            this.mainImage.src = url;
+            this.leftImage.src = url;
+        } else {
+            this.rightImage.src = url;
+        }
+    }
+
+    // 生成分享链接
+    generateShareURL() {
+        const url = new URL(window.location.href.split('?')[0]);
+        if (this.mainImage.src) {
+            url.searchParams.set('img1', this.mainImage.src);
+        }
+        if (this.rightImage.src) {
+            url.searchParams.set('img2', this.rightImage.src);
+        }
+        if (this.compareMode) {
+            url.searchParams.set('compare', 'true');
+        }
+        return url.toString();
+    }
+
+    // 复制分享链接到剪贴板
+    copyShareLink() {
+        const shareURL = this.generateShareURL();
+        navigator.clipboard.writeText(shareURL).then(() => {
+            alert('分享链接已复制到剪贴板！');
+        }).catch(err => {
+            console.error('复制失败:', err);
+            alert('复制失败，请手动复制链接：' + shareURL);
+        });
     }
 }
 

@@ -3,15 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>图片查看器</title>
+    <title>图片对比查看器</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <div class="container">
         <div class="upload-section">
-            <input type="file" id="image1" accept="image/*">
-            <input type="file" id="image2" accept="image/*">
-            <button id="compareMode">切换对比模式</button>
+            <div class="file-upload">
+                <input type="file" id="image1" accept="image/*">
+                <label for="image1">
+                    <i class="fas fa-upload"></i> 上传图片 1
+                </label>
+            </div>
+            
+            <div class="file-upload">
+                <input type="file" id="image2" accept="image/*">
+                <label for="image2">
+                    <i class="fas fa-upload"></i> 上传图片 2
+                </label>
+            </div>
+            
+            <button id="compareMode">
+                <i class="fas fa-columns"></i> 对比模式
+            </button>
+            
+            <button id="shareButton">
+                <i class="fas fa-share-alt"></i> 分享
+            </button>
         </div>
         
         <div class="viewer-container">
