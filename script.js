@@ -2,9 +2,12 @@ class ImageViewer {
     constructor() {
         this.setupElements();
         this.setupEventListeners();
+        this.setupNewFeatures();
         this.scale = 1;
         this.translateX = 0;
         this.translateY = 0;
+        this.rotation = 0;
+        this.brightness = 100;
         this.isDragging = false;
         this.compareMode = false;
 
@@ -22,6 +25,8 @@ class ImageViewer {
         this.compareViewer = document.getElementById('compareViewer');
         this.slider = document.getElementById('slider');
         this.compareButton = document.getElementById('compareMode');
+        this.container = document.querySelector('.viewer-container');
+        this.brightnessControl = document.querySelector('.brightness-control');
 
         // 初始化图片样式
         [this.mainImage, this.leftImage, this.rightImage].forEach(img => {
@@ -111,7 +116,9 @@ class ImageViewer {
     }
 
     updateTransform() {
-        const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
+        const transform = `translate(${this.translateX}px, ${this.translateY}px) 
+                          rotate(${this.rotation}deg) 
+                          scale(${this.scale})`;
         [this.mainImage, this.leftImage, this.rightImage].forEach(img => {
             img.style.transform = transform;
         });
@@ -199,6 +206,67 @@ class ImageViewer {
         }).catch(err => {
             console.error('复制失败:', err);
             alert('复制失败，请手动复制链接：' + shareURL);
+        });
+    }
+
+    setupNewFeatures() {
+        // 重置功能
+        document.getElementById('resetButton').addEventListener('click', () => {
+            this.scale = 1;
+            this.translateX = 0;
+            this.translateY = 0;
+            this.rotation = 0;
+            this.brightness = 100;
+            this.updateTransform();
+            this.updateBrightness();
+            document.getElementById('brightnessSlider').value = 100;
+        });
+
+        // 旋转功能
+        document.getElementById('rotateButton').addEventListener('click', () => {
+            this.rotation = (this.rotation + 90) % 360;
+            this.updateTransform();
+        });
+
+        // 下载功能
+        document.getElementById('downloadButton').addEventListener('click', () => {
+            const img = this.compareMode ? this.leftImage : this.mainImage;
+            if (img.src) {
+                const link = document.createElement('a');
+                link.download = 'image.png';
+                link.href = img.src;
+                link.click();
+            }
+        });
+
+        // 全屏功能
+        document.getElementById('fullscreenButton').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                this.container.requestFullscreen().catch(err => {
+                    console.error('全屏模式错误:', err);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+
+        // 亮度调节按钮
+        document.getElementById('brightnessButton').addEventListener('click', () => {
+            this.brightnessControl.classList.toggle('hidden');
+        });
+
+        // 亮度滑块
+        const brightnessSlider = document.getElementById('brightnessSlider');
+        brightnessSlider.addEventListener('input', (e) => {
+            this.brightness = e.target.value;
+            this.updateBrightness();
+        });
+    }
+
+    updateBrightness() {
+        const filter = `brightness(${this.brightness}%)`;
+        [this.mainImage, this.leftImage, this.rightImage].forEach(img => {
+            img.style.filter = filter;
         });
     }
 }
