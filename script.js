@@ -10,7 +10,19 @@ class ImageViewer {
         this.brightness = 100;
         this.isDragging = false;
         this.compareMode = false;
+        this.isDrawing = false;
+        this.drawingMode = 'none'; // 'none', 'rect', 'free'
+        this.startX = 0;
+        this.startY = 0;
+        this.currentPath = [];
+        this.annotations1 = []; // 第一张图片的标注
+        this.annotations2 = []; // 第二张图片的标注
+        this.currentAnnotations = this.annotations1; // 当前活动的标注数组
+        this.annotationColor = '#ff0000'; // 添加默认标注颜色
 
+        // 检查是否在飞书环境中
+        this.isInFeishu = typeof tt !== 'undefined';
+        
         // 检查 URL 参数并加载图片
         this.loadFromURL();
     }
@@ -35,6 +47,37 @@ class ImageViewer {
             img.style.objectFit = 'contain';
             img.classList.remove('visible');
         });
+
+        // 为每个视图创建单独的画布
+        this.mainCanvas = document.createElement('canvas');
+        this.mainCanvas.className = 'annotation-canvas';
+        this.imageViewer.appendChild(this.mainCanvas);
+        this.mainCtx = this.mainCanvas.getContext('2d');
+
+        this.compareCanvas1 = document.createElement('canvas');
+        this.compareCanvas1.className = 'annotation-canvas compare-left';
+        this.compareViewer.querySelector('.compare-image.left').appendChild(this.compareCanvas1);
+        this.compareCtx1 = this.compareCanvas1.getContext('2d');
+
+        this.compareCanvas2 = document.createElement('canvas');
+        this.compareCanvas2.className = 'annotation-canvas compare-right';
+        this.compareViewer.querySelector('.compare-image.right').appendChild(this.compareCanvas2);
+        this.compareCtx2 = this.compareCanvas2.getContext('2d');
+
+        this.currentCanvas = this.mainCanvas;
+        this.currentCtx = this.mainCtx;
+    }
+
+    resizeCanvas() {
+        // 使用图片的实际显示尺寸
+        const imgRect = this.mainImage.getBoundingClientRect();
+        this.annotationCanvas.width = imgRect.width;
+        this.annotationCanvas.height = imgRect.height;
+        this.annotationCanvas.style.width = `${imgRect.width}px`;
+        this.annotationCanvas.style.height = `${imgRect.height}px`;
+        
+        // 重新绘制现有的标注
+        this.drawExistingAnnotations();
     }
 
     setupEventListeners() {
@@ -57,34 +100,100 @@ class ImageViewer {
         
         // 添加分享按钮事件
         document.getElementById('shareButton').addEventListener('click', () => this.copyShareLink());
+
+        // 修改画布事件监听
+        [this.mainCanvas, this.compareCanvas1, this.compareCanvas2].forEach(canvas => {
+            canvas.addEventListener('mousedown', (e) => {
+                if (this.drawingMode !== 'none') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.startDrawing(e);
+                }
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (this.isDrawing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.draw(e);
+                }
+            });
+
+            canvas.addEventListener('mouseup', (e) => {
+                if (this.isDrawing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.stopDrawing(e);
+                }
+            });
+        });
     }
 
     handleImageUpload(event, imageNumber) {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                if (imageNumber === 1) {
-                    this.mainImage.src = e.target.result;
-                    this.leftImage.src = e.target.result;
-                    this.leftImage.classList.add('visible');
-                    this.mainImage.classList.add('visible');
-                } else {
-                    this.rightImage.src = e.target.result;
-                    this.rightImage.classList.add('visible');
-                    this.toggleCompareMode();
+        if (this.isInFeishu) {
+            // 使用飞书的图片选择器
+            tt.chooseImage({
+                count: 1,
+                sourceType: ['album', 'camera'],
+                success: (res) => {
+                    const tempFilePath = res.tempFilePaths[0];
+                    if (imageNumber === 1) {
+                        this.mainImage.src = tempFilePath;
+                        this.leftImage.src = tempFilePath;
+                        this.leftImage.classList.add('visible');
+                        this.mainImage.classList.add('visible');
+                        this.currentAnnotations = this.annotations1;
+                        this.currentCanvas = this.compareMode ? this.compareCanvas1 : this.mainCanvas;
+                        this.currentCtx = this.currentCanvas.getContext('2d');
+                    } else {
+                        this.rightImage.src = tempFilePath;
+                        this.rightImage.classList.add('visible');
+                        this.currentAnnotations = this.annotations2;
+                        this.currentCanvas = this.compareCanvas2;
+                        this.currentCtx = this.currentCanvas.getContext('2d');
+                        if (!this.compareMode) {
+                            this.toggleCompareMode();
+                        }
+                    }
+                },
+                fail: (err) => {
+                    console.error('选择图片失败:', err);
                 }
-                
-                // 预加载图片
-                this.preloadImages();
-                
-                // 重置变换
-                this.scale = 1;
-                this.translateX = 0;
-                this.translateY = 0;
-                this.updateTransform();
-            };
-            reader.readAsDataURL(file);
+            });
+        } else {
+            // 原有的文件上传逻辑
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (imageNumber === 1) {
+                        this.mainImage.src = e.target.result;
+                        this.leftImage.src = e.target.result;
+                        this.leftImage.classList.add('visible');
+                        this.mainImage.classList.add('visible');
+                        this.currentAnnotations = this.annotations1;
+                        this.currentCanvas = this.compareMode ? this.compareCanvas1 : this.mainCanvas;
+                        this.currentCtx = this.currentCanvas.getContext('2d');
+                    } else {
+                        this.rightImage.src = e.target.result;
+                        this.rightImage.classList.add('visible');
+                        this.currentAnnotations = this.annotations2;
+                        this.currentCanvas = this.compareCanvas2;
+                        this.currentCtx = this.currentCanvas.getContext('2d');
+                        if (!this.compareMode) {
+                            this.toggleCompareMode();
+                        }
+                    }
+
+                    const img = imageNumber === 1 ? this.mainImage : this.rightImage;
+                    img.onload = () => {
+                        setTimeout(() => {
+                            this.resizeCanvases();
+                        }, 100);
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
         }
     }
 
@@ -98,13 +207,18 @@ class ImageViewer {
     }
 
     startDrag(e) {
-        if (e.target === this.slider) return;
+        if (this.drawingMode !== 'none' || e.target === this.slider || e.target === this.annotationCanvas) {
+            return;
+        }
         this.isDragging = true;
         this.lastX = e.clientX;
         this.lastY = e.clientY;
     }
 
     drag(e) {
+        if (this.drawingMode !== 'none') {
+            return;
+        }
         if (!this.isDragging) return;
         
         const deltaX = e.clientX - this.lastX;
@@ -126,11 +240,12 @@ class ImageViewer {
     updateTransform() {
         requestAnimationFrame(() => {
             const transform = `translate(${this.translateX}px, ${this.translateY}px) 
-                              rotate(${this.rotation}deg) 
-                              scale(${this.scale})`;
+                             rotate(${this.rotation}deg) 
+                             scale(${this.scale})`;
             [this.mainImage, this.leftImage, this.rightImage].forEach(img => {
                 img.style.transform = transform;
             });
+            this.annotationCanvas.style.transform = transform;
         });
     }
 
@@ -146,7 +261,7 @@ class ImageViewer {
             // 更新滑块位置
             this.slider.style.left = `${clampedPercentage}%`;
             
-            // 更新右侧图片的裁剪区域
+            // 更新右侧图片的剪区域
             const rightImage = document.querySelector('.compare-image.right');
             rightImage.style.clipPath = `inset(0 0 0 ${clampedPercentage}%)`;
         };
@@ -167,22 +282,29 @@ class ImageViewer {
             this.imageViewer.classList.add('hidden');
             this.compareViewer.classList.remove('hidden');
             
-            // 添加淡入效果
             this.leftImage.classList.add('visible');
             this.rightImage.classList.add('visible');
             
-            // 初始化滑块位置
-            this.slider.style.left = '50%'; // 设置滑块初始位置为中间
-            document.querySelector('.compare-image.right').style.clipPath = 
-                `inset(0 0 0 50%)`; // 设置右侧图片的初始显示
+            this.slider.style.left = '50%';
+            document.querySelector('.compare-image.right').style.clipPath = `inset(0 0 0 50%)`;
+
+            // 更新当前画布
+            this.currentCanvas = this.compareCanvas1;
+            this.currentCtx = this.currentCanvas.getContext('2d');
+            this.currentAnnotations = this.annotations1;
         } else {
             this.imageViewer.classList.remove('hidden');
             this.compareViewer.classList.add('hidden');
             
-            // 移除淡入效果
             this.leftImage.classList.remove('visible');
             this.rightImage.classList.remove('visible');
+
+            // 更新当前画布
+            this.currentCanvas = this.mainCanvas;
+            this.currentCtx = this.currentCanvas.getContext('2d');
+            this.currentAnnotations = this.annotations1;
         }
+        this.resizeCanvases();
     }
 
     loadFromURL() {
@@ -203,12 +325,28 @@ class ImageViewer {
         }
     }
 
-    loadImageFromURL(url, imageNumber) {
-        if (imageNumber === 1) {
-            this.mainImage.src = url;
-            this.leftImage.src = url;
-        } else {
-            this.rightImage.src = url;
+    async loadImageFromURL(url, imageNumber) {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const objectURL = URL.createObjectURL(blob);
+            
+            if (imageNumber === 1) {
+                this.mainImage.src = objectURL;
+                this.leftImage.src = objectURL;
+                this.leftImage.classList.add('visible');
+                this.mainImage.classList.add('visible');
+            } else {
+                this.rightImage.src = objectURL;
+                this.rightImage.classList.add('visible');
+                if (!this.compareMode) {
+                    this.toggleCompareMode();
+                }
+            }
+        } catch (error) {
+            console.error('加载图片失败:', error);
+            // 添加错误提示
+            alert('图片加载失败，请检查链接是否有效');
         }
     }
 
@@ -229,13 +367,29 @@ class ImageViewer {
 
     // 复制分享链接到剪贴板
     copyShareLink() {
-        const shareURL = this.generateShareURL();
-        navigator.clipboard.writeText(shareURL).then(() => {
-            alert('分享链接已复制到剪贴板！');
-        }).catch(err => {
-            console.error('复制失败:', err);
-            alert('复制失败，请手动复制链接：' + shareURL);
-        });
+        if (this.isInFeishu) {
+            // 使用飞书的分享功能
+            tt.shareAppMessage({
+                title: '图片对比查看',
+                desc: '查看并对比两张图片',
+                path: window.location.href,
+                success: () => {
+                    tt.showToast({
+                        title: '分享成功',
+                        icon: 'success'
+                    });
+                },
+                fail: (err) => {
+                    console.error('分享失败:', err);
+                }
+            });
+        } else {
+            // 原有的分享逻辑
+            const url = this.generateShareURL();
+            navigator.clipboard.writeText(url).then(() => {
+                alert('链接已复制到剪贴板！');
+            });
+        }
     }
 
     setupNewFeatures() {
@@ -290,6 +444,45 @@ class ImageViewer {
             this.brightness = e.target.value;
             this.updateBrightness();
         });
+
+        // 在工具栏中添加标注按钮
+        const annotationButtons = `
+            <button id="rectAnnotation" class="tool-button" title="矩形标注">
+                <i class="fas fa-vector-square"></i>
+            </button>
+            <button id="freeAnnotation" class="tool-button" title="自由标注">
+                <i class="fas fa-pencil-alt"></i>
+            </button>
+            <button id="clearAnnotations" class="tool-button" title="清除标注">
+                <i class="fas fa-eraser"></i>
+            </button>
+            <input type="color" id="annotationColor" class="tool-button color-picker" 
+                   value="${this.annotationColor}" title="标注颜色">
+        `;
+        
+        const toolbar = document.querySelector('.toolbar');
+        toolbar.insertAdjacentHTML('beforeend', annotationButtons);
+
+        // 添加标注按钮事件监听
+        document.getElementById('rectAnnotation').addEventListener('click', () => {
+            this.drawingMode = this.drawingMode === 'rect' ? 'none' : 'rect';
+            this.updateToolbarState();
+        });
+
+        document.getElementById('freeAnnotation').addEventListener('click', () => {
+            this.drawingMode = this.drawingMode === 'free' ? 'none' : 'free';
+            this.updateToolbarState();
+        });
+
+        document.getElementById('clearAnnotations').addEventListener('click', () => {
+            this.clearAnnotations();
+            this.drawingMode = 'none';
+            this.updateToolbarState();
+        });
+
+        document.getElementById('annotationColor').addEventListener('input', (e) => {
+            this.annotationColor = e.target.value;
+        });
     }
 
     updateBrightness() {
@@ -306,6 +499,179 @@ class ImageViewer {
             const img = new Image();
             img.src = src;
         });
+    }
+
+    startDrawing(e) {
+        if (this.drawingMode === 'none') return;
+        
+        this.isDrawing = true;
+        const rect = e.target.getBoundingClientRect();
+        this.startX = e.clientX - rect.left;
+        this.startY = e.clientY - rect.top;
+        
+        if (this.drawingMode === 'free') {
+            this.currentPath = [[this.startX, this.startY]];
+        }
+
+        // 开始绘制时先清除当前画布
+        this.currentCtx.clearRect(0, 0, this.currentCanvas.width, this.currentCanvas.height);
+        this.drawAnnotationsOnCanvas(this.currentCtx, this.currentAnnotations);
+    }
+
+    draw(e) {
+        if (!this.isDrawing || this.drawingMode === 'none') return;
+
+        const rect = e.target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        // 清除画布并重绘所有标注
+        this.currentCtx.clearRect(0, 0, this.currentCanvas.width, this.currentCanvas.height);
+        this.drawAnnotationsOnCanvas(this.currentCtx, this.currentAnnotations);
+
+        // 绘制当前标注
+        this.currentCtx.beginPath();
+        this.currentCtx.strokeStyle = this.annotationColor;
+        this.currentCtx.lineWidth = 2;
+
+        if (this.drawingMode === 'rect') {
+            this.currentCtx.rect(this.startX, this.startY, x - this.startX, y - this.startY);
+        } else if (this.drawingMode === 'free') {
+            this.currentPath.push([x, y]);
+            this.currentCtx.moveTo(this.currentPath[0][0], this.currentPath[0][1]);
+            for (let i = 1; i < this.currentPath.length; i++) {
+                this.currentCtx.lineTo(this.currentPath[i][0], this.currentPath[i][1]);
+            }
+        }
+        this.currentCtx.stroke();
+    }
+
+    stopDrawing(e) {
+        if (!this.isDrawing) return;
+        
+        const rect = e.target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        if (this.drawingMode === 'rect') {
+            this.currentAnnotations.push({
+                type: 'rect',
+                x: this.startX,
+                y: this.startY,
+                width: x - this.startX,
+                height: y - this.startY,
+                color: this.annotationColor
+            });
+        } else if (this.drawingMode === 'free') {
+            this.currentAnnotations.push({
+                type: 'free',
+                points: this.currentPath,
+                color: this.annotationColor
+            });
+        }
+
+        this.isDrawing = false;
+        this.currentPath = [];
+        this.drawAnnotationsOnCanvas(this.currentCtx, this.currentAnnotations);
+    }
+
+    drawExistingAnnotations() {
+        // 如果在对比模式下，不绘制标注
+        if (this.compareMode) return;
+
+        this.ctx.clearRect(0, 0, this.annotationCanvas.width, this.annotationCanvas.height);
+        
+        // 绘制所有保存的标注
+        this.annotations.forEach(annotation => {
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = annotation.color;
+            this.ctx.lineWidth = 2;
+
+            if (annotation.type === 'rect') {
+                this.ctx.rect(annotation.x, annotation.y, annotation.width, annotation.height);
+            } else if (annotation.type === 'free') {
+                const points = annotation.points;
+                this.ctx.moveTo(points[0][0], points[0][1]);
+                for (let i = 1; i < points.length; i++) {
+                    this.ctx.lineTo(points[i][0], points[i][1]);
+                }
+            }
+            this.ctx.stroke();
+        });
+    }
+
+    updateToolbarState() {
+        const rectButton = document.getElementById('rectAnnotation');
+        const freeButton = document.getElementById('freeAnnotation');
+        
+        rectButton.classList.toggle('active', this.drawingMode === 'rect');
+        freeButton.classList.toggle('active', this.drawingMode === 'free');
+
+        // 更新鼠标样式
+        if (this.drawingMode === 'none') {
+            this.annotationCanvas.style.cursor = 'default';
+        } else if (this.drawingMode === 'rect') {
+            this.annotationCanvas.style.cursor = 'crosshair';
+        } else if (this.drawingMode === 'free') {
+            this.annotationCanvas.style.cursor = 'pointer';
+        }
+
+        console.log('当前绘制模式:', this.drawingMode); // 添加调试日志
+    }
+
+    resizeCanvases() {
+        const container = this.imageViewer.getBoundingClientRect();
+        [this.mainCanvas, this.compareCanvas1, this.compareCanvas2].forEach(canvas => {
+            canvas.width = container.width;
+            canvas.height = container.height;
+        });
+        this.drawAllAnnotations();
+    }
+
+    drawAllAnnotations() {
+        if (this.compareMode) {
+            this.drawAnnotationsOnCanvas(this.compareCtx1, this.annotations1);
+            this.drawAnnotationsOnCanvas(this.compareCtx2, this.annotations2);
+        } else {
+            this.drawAnnotationsOnCanvas(this.mainCtx, this.annotations1);
+        }
+    }
+
+    drawAnnotationsOnCanvas(ctx, annotations) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        annotations.forEach(annotation => {
+            ctx.beginPath();
+            ctx.strokeStyle = annotation.color;
+            ctx.lineWidth = 2;
+
+            if (annotation.type === 'rect') {
+                ctx.rect(annotation.x, annotation.y, annotation.width, annotation.height);
+            } else if (annotation.type === 'free') {
+                const points = annotation.points;
+                ctx.moveTo(points[0][0], points[0][1]);
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i][0], points[i][1]);
+                }
+            }
+            ctx.stroke();
+        });
+    }
+
+    // 修改清除标注功能
+    clearAnnotations() {
+        if (this.compareMode) {
+            // 在对比模式下，根据当前活动的画布清除相应的标注
+            if (this.currentCanvas === this.compareCanvas1) {
+                this.annotations1 = [];
+                this.compareCtx1.clearRect(0, 0, this.compareCanvas1.width, this.compareCanvas1.height);
+            } else {
+                this.annotations2 = [];
+                this.compareCtx2.clearRect(0, 0, this.compareCanvas2.width, this.compareCanvas2.height);
+            }
+        } else {
+            this.annotations1 = [];
+            this.mainCtx.clearRect(0, 0, this.mainCanvas.width, this.mainCanvas.height);
+        }
     }
 }
 
